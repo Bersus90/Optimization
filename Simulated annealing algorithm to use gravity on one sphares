@@ -1,0 +1,180 @@
+import numpy as np
+import matplotlib.pyplot as plt
+import math
+import matplotlib
+
+
+# identifying our observation and value of background , targets for sphares to create synthetic model
+
+def gravity_forward(xobs, xtarget, ztarget, r, trho):
+
+    G = 6.67e-11
+    bckgrho = 1750
+    
+    # gravity calculation for sphare
+    
+    R = math.sqrt((xobs - xtarget)**2 + (ztarget)**2)
+    grav = G*(4*np.pi)*(r**3)*(trho - bckgrho)*ztarget / (R**(3/2))
+    return grav
+
+
+def forward_model(xobs, xtarget, ztarget, r, trho):
+    obs_grav = np.zeros((len(xobs)))
+    for i in range(len(xobs)):
+        obs_grav[i] = gravity_forward(xobs[i], xtarget, ztarget, r, trho)        
+    return obs_grav
+
+#Identifying the objective function 
+
+def objective_function(obs_data, xobs, xtarget, ztarget, r, trho):
+    misfit = np.sum(np.square(np.subtract(obs_data, forward_model(xobs, xtarget, ztarget, r, trho))))
+    return misfit
+
+
+# Survery Paramaters
+
+stations = 100
+xobs= np.linspace(-250,250,stations)
+
+trho = 2500
+xtarget = 100
+ztarget = 20
+r = 5
+true_model = np.array([xtarget, ztarget, r, trho])
+
+# plotting our Syntetic model
+
+obs_data = forward_model(xobs, xtarget, ztarget, r, trho)
+plt.figure(figsize = (10, 6))
+plt.plot(xobs,obs_data, 'r*')
+plt.title('Measurement')
+plt.show()
+
+
+# simulated annealing function definition
+
+def SimAnn_solver(xobs, obs_data, initial_model, objective_function, temp, sample_number):
+    
+    # initial_model = [xtarget, ztarget, r, Rhotarget]
+    
+    xtarget = initial_model[0]
+    ztarget = initial_model[1]
+    r = initial_model[2]
+    trho = initial_model[3]
+    
+    initial_eval = objective_function(obs_data, xobs, xtarget, ztarget, r, trho)
+    
+    # current model and its evaluation
+    
+    current, current_eval = initial_model, initial_eval
+    
+    # random samples from data space - random candidates
+    
+    trho_rand = np.random.randint(1,2500,size=sample_number)
+    xtarget_rand= np.random.randint(-1000,1000,size=sample_number)
+    ztarget_rand= np.random.randint(1,500,size=sample_number)
+    r_rand= np.random.randint(1,20,size=sample_number)    
+    
+    # for keeping track of the objective function value
+    obj_func_value = []
+    
+    #  part of the algorithm looping
+    for i in range(sample_number):
+        candidate_solution = np.array([xtarget_rand[i], ztarget_rand[i], r_rand[i], trho_rand[i]])
+        
+        # candidate evaulation
+        candidate_solution_eval = objective_function(obs_data, xobs, candidate_solution[0],
+                                                     candidate_solution[1], candidate_solution[2],
+                                                     candidate_solution[3])
+        
+        # iterate the candidate input
+        
+        if candidate_solution_eval < initial_eval:
+            # store new best point
+            initial_model, initial_eval = candidate_solution, candidate_solution_eval
+        
+            
+            
+            
+        # keep track of the misfit values
+        
+        obj_func_value.append(initial_eval)
+        
+        # difference between candidate and current solution evaluation
+        
+        diff = candidate_solution_eval - current_eval
+        
+        
+        # calculate temperature for current iteration
+        
+        t = temp /(float(i + 1)*0.99)
+        
+        # calculate metropolis acceptance criterion
+        
+        temperature= np.asarray(t)
+        
+        
+        
+        metropolis_criterion = np.exp(-diff / t)
+
+        
+        # check if we should keep the new point
+        if diff < 0 or np.random.uniform(low=0, high=1) < metropolis_criterion:
+            
+            # store the new current point
+            current, current_eval = candidate_solution, candidate_solution_eval
+              
+        
+   
+        
+    return initial_model, initial_eval, obj_func_value,temperature
+    
+    
+    
+initial_model = np.random.randn(4)
+temp = 100
+sample_number = 1000000
+
+final_model, final_misfit, misfit_values,temperature = SimAnn_solver(xobs, obs_data, initial_model, objective_function, temp, sample_number)
+
+# Plotting our iteration solution for simulated annealing
+
+obs_data = forward_model(xobs, xtarget, ztarget, r, trho)
+predicted_data = forward_model(xobs, final_model[0], final_model[1], final_model[2], final_model[3])
+plt.figure(figsize = (10, 6))
+plt.plot(xobs,obs_data, 'r*', label = 'Measurement')
+plt.plot(xobs,predicted_data, 'bo', label = 'Inversion result')
+plt.title('Inversion result')
+plt.legend(loc = 'best')
+
+print('Recovered model: ', final_model)
+print('True model: ', true_model)
+print('Final misfit: ', final_misfit)
+
+
+plt.show()
+
+
+plt.figure( figsize = (10, 6))
+plt.plot(misfit_values)
+
+
+plt.title('Objective function')
+plt.show()
+
+Calculating the value of misfit fucntion 
+
+print('Recovered model: ', final_model)
+print('True model: ', true_model)
+print('Final misfit: ', final_misfit)
+
+# plotting to changing of  objective function 
+plt.figure( figsize = (10, 6))
+plt.plot(misfit_values)
+
+
+plt.title('Objective function')
+plt.show()
+
+
+
